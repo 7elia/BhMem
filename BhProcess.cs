@@ -30,7 +30,7 @@ public class BhProcess(Process process)
                 if (entry.th32OwnerProcessID != (uint) Process.Id) continue;
 
                 var ptr = FindThreadStackBase(entry.th32ThreadID);
-                Console.WriteLine($"0x{ptr + 0x009BF000:X}");
+                Console.WriteLine($"0x{ptr:X}");
             } while (NativeMethods.Thread32Next(snapshot, ref entry));
         }
         else
