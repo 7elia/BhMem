@@ -19,7 +19,7 @@ public class BhProcess(Process process)
 
         foreach (var offset in offsets)
         {
-            current = ReadUInt32(current);
+            current = ReadPointer(current);
             if (current == UIntPtr.Zero)
             {
                 return UIntPtr.Zero;
@@ -38,10 +38,17 @@ public class BhProcess(Process process)
         return result;
     }
 
-    public UIntPtr ReadMemory(UIntPtr address, byte[] buffer, uint size)
+    public UIntPtr ReadPointer(UIntPtr address)
     {
-        NativeMethods.ReadProcessMemory(Process.Handle, address, buffer, size, out var bytesRead);
-        return bytesRead;
+        var buffer = new byte[IntPtr.Size];
+        var success = NativeMethods.ReadProcessMemory(Process.Handle, address, buffer, buffer.Length, out var bytesRead);
+    
+        if (!success || bytesRead != buffer.Length)
+        {
+            return UIntPtr.Zero;
+        }
+
+        return BitConverter.ToUInt32(buffer, 0);
     }
 
     public int ReadInt32(UIntPtr address) => BitConverter.ToInt32(ReadMemory(address, sizeof(int)), 0);

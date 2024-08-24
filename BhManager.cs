@@ -10,12 +10,12 @@ public class BhManager
     {
         get
         {
-            // BhProcess?.ReadInt32(_threadStackAddress);
-            return 0;
+            if (BhProcess == null) return 0;
+            var stackAddress = BhProcess.GetThreadStackAddress(0);
+            var address = BhProcess.GetPointer(stackAddress - 0x00000A48, [0x150, 0x84, 0x4, 0x2C, 0x140]);
+            return BhProcess.ReadInt32(address);
         }
     }
-
-    private UIntPtr _threadStackAddress;
 
     public bool Initialize()
     {
@@ -47,16 +47,9 @@ public class BhManager
 
         try
         {
-            Console.WriteLine("\nScanning for memory addresses... (This may take a while)");
-
-            _threadStackAddress = BhProcess.GetThreadStackAddress(0);
-            Console.WriteLine(_threadStackAddress.ToString("X"));
-            var pointer = BhProcess?.GetPointer(_threadStackAddress - 0x00000A48, [0x150, 0x84, 0x4, 0x2C, 0x140]);
-            Console.WriteLine(pointer.GetValueOrDefault().ToString("X"));
-            var result = BhProcess?.ReadInt32(pointer.GetValueOrDefault());
-            Console.WriteLine(result.GetValueOrDefault().ToString("X"));
-            // _threadStackAddress = BhProcess.FindThreadStack();
-            // Console.WriteLine(_threadStackAddress.ToString("X"));
+            var stackAddress = BhProcess.GetThreadStackAddress(0);
+            var address = BhProcess.GetPointer(stackAddress - 0x00000A48, [0x150, 0x84, 0x4, 0x2C, 0x140]);
+            Console.WriteLine(BhProcess.ReadInt32(address));
         }
         catch (Exception e)
         {

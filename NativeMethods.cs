@@ -47,6 +47,9 @@ public static class NativeMethods
 
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool FreeLibrary(IntPtr hModule);
+    
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool ReadProcessMemory(IntPtr hProcess, UIntPtr lpBaseAddress, byte[] lpBuffer, int dwSize, out int lpNumberOfBytesRead);
 
     public enum THREADINFOCLASS
     {
