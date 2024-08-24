@@ -10,12 +10,12 @@ public class BhManager
     {
         get
         {
-            BhProcess?.ReadInt32(_threadStackAddress);
+            // BhProcess?.ReadInt32(_threadStackAddress);
             return 0;
         }
     }
 
-    private UIntPtr _threadStackAddress;
+    private IntPtr _threadStackAddress;
 
     public bool Initialize()
     {
@@ -49,7 +49,7 @@ public class BhManager
             Console.WriteLine("\nScanning for memory addresses... (This may take a while)");
 
             _threadStackAddress = BhProcess.FindThreadStack();
-            Console.WriteLine(_threadStackAddress.ToUInt64().ToString("X"));
+            // Console.WriteLine(_threadStackAddress.ToString("X"));
         }
         catch (Exception e)
         {
