@@ -51,7 +51,7 @@ public class BhManager
 
             _threadStackAddress = BhProcess.GetThreadStackAddress(0);
             Console.WriteLine(_threadStackAddress.ToString("X"));
-            var pointer = BhProcess?.GetPointer(_threadStackAddress, [0x150, 0x84, 0x4, 0x2C, 0x140]);
+            var pointer = BhProcess?.GetPointer(_threadStackAddress - 0x00000A48, [0x150, 0x84, 0x4, 0x2C, 0x140]);
             Console.WriteLine(pointer.GetValueOrDefault().ToString("X"));
             var result = BhProcess?.ReadInt32(pointer.GetValueOrDefault());
             Console.WriteLine(result.GetValueOrDefault().ToString("X"));
