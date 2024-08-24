@@ -29,30 +29,8 @@ public class BhProcess(Process process)
             {
                 if (entry.th32OwnerProcessID != (uint) Process.Id) continue;
 
-                var threadHandle = NativeMethods.OpenThread(0x0040, false, entry.th32ThreadID);
-                if (threadHandle == IntPtr.Zero)
-                {
-                    Console.WriteLine($"Couldn't open thread: {Marshal.GetLastWin32Error()}");
-                    continue;
-                }
-
-                var tbi = new NativeMethods.THREAD_BASIC_INFORMATION();
-                var tdiLength = (uint) Marshal.SizeOf(typeof(NativeMethods.THREAD_BASIC_INFORMATION));
-                var status = NativeMethods.NtQueryInformationThread(threadHandle, NativeMethods.ThreadBasicInformation, ref tbi, tdiLength, IntPtr.Zero);
-                NativeMethods.CloseHandle(threadHandle);
-
-                if (status == 0)
-                {
-                    var stackBase = ReadStackBase(process.Handle, tbi.TebBaseAddress);
-                    if (stackBase != IntPtr.Zero)
-                    {
-                        Console.WriteLine($"0x{stackBase:X}");
-                    }
-
-                    continue;
-                }
-
-                Console.WriteLine($"Failed to query information for thread ID: {entry.th32ThreadID}, Status: {status:X} / {Marshal.GetLastWin32Error()}");
+                var ptr = FindThreadStackBase(entry.th32ThreadID);
+                Console.WriteLine($"0x{ptr:X}");
             } while (NativeMethods.Thread32Next(snapshot, ref entry));
         }
         else
@@ -64,14 +42,65 @@ public class BhProcess(Process process)
         return IntPtr.Zero;
     }
 
-    private static IntPtr ReadStackBase(IntPtr processHandle, IntPtr tebAddress)
+    private IntPtr FindThreadStackBase(uint threadId)
     {
-        const int tebStackBaseOffset = 0x8;
-
-        var buffer = new byte[IntPtr.Size];
-        if (NativeMethods.ReadProcessMemory(processHandle, tebAddress + tebStackBaseOffset, buffer, (uint) buffer.Length, out var bytesRead) && bytesRead == buffer.Length)
+        var threadHandle = NativeMethods.OpenThread(NativeMethods.PROCESS_VM_READ, false, threadId);
+        if (threadHandle == IntPtr.Zero)
         {
-            return new IntPtr(BitConverter.ToInt64(buffer, 0));
+            Console.WriteLine($"Failed to open thread: {Marshal.GetLastWin32Error()}");
+            return IntPtr.Zero;
+        }
+
+        var tebAddress = GetTebBaseAddress(threadHandle);
+        if (tebAddress != IntPtr.Zero)
+        {
+            var stackBase = ReadStackBase(tebAddress);
+            if (stackBase != IntPtr.Zero)
+            {
+                return stackBase;
+            }
+        }
+
+        NativeMethods.CloseHandle(threadHandle);
+        return IntPtr.Zero;
+    }
+
+    private static IntPtr GetTebBaseAddress(IntPtr threadHandle)
+    {
+        if (Environment.Is64BitProcess)
+        {
+            var tbi = new NativeMethods.THREAD_BASIC_INFORMATION();
+            var status = NativeMethods.NtQueryInformationThread(
+                threadHandle,
+                NativeMethods.ThreadBasicInformation,
+                ref tbi,
+                (uint) Marshal.SizeOf(typeof(NativeMethods.THREAD_BASIC_INFORMATION)),
+                IntPtr.Zero
+            );
+            if (status == 0)
+            {
+                return tbi.TebBaseAddress;
+            }
+        }
+        else
+        {
+            if (NativeMethods.Wow64GetThreadSelectorEntry(threadHandle, 0x18, out var ldtEntry))
+            {
+                return (ldtEntry.BaseHi << 24) | (ldtEntry.BaseMid << 16) | ldtEntry.BaseLow;
+            }
+        }
+
+        Console.WriteLine($"Failed to get TEB Base Address: {Marshal.GetLastWin32Error()}");
+        return IntPtr.Zero;
+    }
+
+    private IntPtr ReadStackBase(IntPtr tebAddress)
+    {
+        var tebStackBaseOffset = Environment.Is64BitProcess ? 0x8 : 0x4;
+        var buffer = new byte[IntPtr.Size];
+        if (NativeMethods.ReadProcessMemory(Process.Handle, tebAddress + tebStackBaseOffset, buffer, (uint) buffer.Length, out int bytesRead) && bytesRead == buffer.Length)
+        {
+            return (IntPtr.Size == 4) ? new IntPtr(BitConverter.ToInt32(buffer, 0)) : new IntPtr(BitConverter.ToInt64(buffer, 0));
         }
 
         Console.WriteLine($"Failed to read stack base from TEB: {Marshal.GetLastWin32Error()}");
@@ -81,13 +110,13 @@ public class BhProcess(Process process)
     private byte[] ReadMemory(IntPtr address, uint size)
     {
         var result = new byte[size];
-        NativeMethods.ReadProcessMemory(Process.Handle, address, result, size, out _);
+        NativeMethods.ReadProcessMemory(Process.Handle, address, result, size, out int _);
         return result;
     }
 
     public IntPtr ReadMemory(IntPtr address, byte[] buffer, uint size)
     {
-        NativeMethods.ReadProcessMemory(Process.Handle, address, buffer, size, out var bytesRead);
+        NativeMethods.ReadProcessMemory(Process.Handle, address, buffer, size, out int bytesRead);
         return bytesRead;
     }
 

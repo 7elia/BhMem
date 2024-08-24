@@ -7,7 +7,7 @@ namespace BhMem;
 public static class NativeMethods
 {
     [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, [Out] byte[] lpBuffer, uint dwSize, out IntPtr lpNumberOfBytesRead);
+    public static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, uint dwSize, out int lpNumberOfBytesRead);
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessId);
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
@@ -26,8 +26,8 @@ public static class NativeMethods
     );
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern bool CloseHandle(IntPtr hObject);
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool Wow64GetThreadSelectorEntry(IntPtr hThread, uint dwSelector, out LDT_ENTRY lpSelectorEntry);
     
     public const uint TH32CS_SNAPTHREAD = 0x00000004;
     public const uint PROCESS_VM_READ = 0x0010;
@@ -61,5 +61,16 @@ public static class NativeMethods
     {
         public IntPtr UniqueProcess;
         public IntPtr UniqueThread;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LDT_ENTRY
+    {
+        public ushort LimitLow;
+        public ushort BaseLow;
+        public byte BaseMid;
+        public byte Flags1;
+        public byte Flags2;
+        public byte BaseHi;
     }
 }
