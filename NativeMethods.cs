@@ -30,7 +30,6 @@ public static class NativeMethods
     public static extern bool Wow64GetThreadSelectorEntry(IntPtr hThread, uint dwSelector, out LDT_ENTRY lpSelectorEntry);
     
     public const uint TH32CS_SNAPTHREAD = 0x00000004;
-    public const uint PROCESS_VM_READ = 0x0010;
     public const int ThreadBasicInformation = 0x0;
     
     [StructLayout(LayoutKind.Sequential)]

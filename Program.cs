@@ -2,17 +2,16 @@ namespace BhMem;
 
 class Program
 {
-    private static BhManager BhManager;
-    
-    static void Main(string[] args)
-    {
-        BhManager = new BhManager();
+    private static BhManager? _bhManager;
 
-        if (!BhManager.Initialize())
-        {
-            Console.WriteLine("\nBhMem will close in 5 seconds...");
-            Thread.Sleep(5000);
-            Environment.Exit(0);
-        }
+    private static void Main(string[] args)
+    {
+        _bhManager = new BhManager();
+
+        if (_bhManager.Initialize()) return;
+        
+        Console.WriteLine("\nBhMem will close in 5 seconds...");
+        Thread.Sleep(5000);
+        Environment.Exit(0);
     }
 }

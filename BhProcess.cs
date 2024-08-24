@@ -30,7 +30,7 @@ public class BhProcess(Process process)
                 if (entry.th32OwnerProcessID != (uint) Process.Id) continue;
 
                 var ptr = FindThreadStackBase(entry.th32ThreadID);
-                Console.WriteLine($"0x{ptr:X}");
+                Console.WriteLine($"0x{ptr + 0x009BF000:X}");
             } while (NativeMethods.Thread32Next(snapshot, ref entry));
         }
         else
@@ -44,7 +44,7 @@ public class BhProcess(Process process)
 
     private IntPtr FindThreadStackBase(uint threadId)
     {
-        var threadHandle = NativeMethods.OpenThread(NativeMethods.PROCESS_VM_READ, false, threadId);
+        var threadHandle = NativeMethods.OpenThread(0x0040, false, threadId);
         if (threadHandle == IntPtr.Zero)
         {
             Console.WriteLine($"Failed to open thread: {Marshal.GetLastWin32Error()}");
@@ -98,25 +98,25 @@ public class BhProcess(Process process)
     {
         var tebStackBaseOffset = Environment.Is64BitProcess ? 0x8 : 0x4;
         var buffer = new byte[IntPtr.Size];
-        if (NativeMethods.ReadProcessMemory(Process.Handle, tebAddress + tebStackBaseOffset, buffer, (uint) buffer.Length, out int bytesRead) && bytesRead == buffer.Length)
+        if (NativeMethods.ReadProcessMemory(Process.Handle, tebAddress + tebStackBaseOffset, buffer, (uint) buffer.Length, out var bytesRead) && bytesRead == buffer.Length)
         {
             return (IntPtr.Size == 4) ? new IntPtr(BitConverter.ToInt32(buffer, 0)) : new IntPtr(BitConverter.ToInt64(buffer, 0));
         }
 
-        Console.WriteLine($"Failed to read stack base from TEB: {Marshal.GetLastWin32Error()}");
+        Console.WriteLine($"Failed to read stack base from TEB: {Marshal.GetLastWin32Error()} ({bytesRead} / {buffer.Length})");
         return IntPtr.Zero;
     }
 
     private byte[] ReadMemory(IntPtr address, uint size)
     {
         var result = new byte[size];
-        NativeMethods.ReadProcessMemory(Process.Handle, address, result, size, out int _);
+        NativeMethods.ReadProcessMemory(Process.Handle, address, result, size, out _);
         return result;
     }
 
     public IntPtr ReadMemory(IntPtr address, byte[] buffer, uint size)
     {
-        NativeMethods.ReadProcessMemory(Process.Handle, address, buffer, size, out int bytesRead);
+        NativeMethods.ReadProcessMemory(Process.Handle, address, buffer, size, out var bytesRead);
         return bytesRead;
     }
 
