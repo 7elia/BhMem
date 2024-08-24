@@ -1,22 +1,21 @@
 ﻿using System.Diagnostics;
-using System.Text;
 
 namespace BhMem;
 
 public class BhManager
 {
-    public BhProcess BhProcess { get; private set; }
+    private BhProcess? BhProcess { get; set; }
 
     public int UserId
     {
         get
         {
-            BhProcess.ReadInt32(UserIdAddress);
+            BhProcess?.ReadInt32(_threadStackAddress);
             return 0;
         }
     }
 
-    private UIntPtr UserIdAddress;
+    private UIntPtr _threadStackAddress;
 
     public bool Initialize()
     {
@@ -31,7 +30,7 @@ public class BhManager
         }
 
         bhProcess.EnableRaisingEvents = true;
-        bhProcess.Exited += (o, e) => Environment.Exit(0);
+        bhProcess.Exited += (_, _) => Environment.Exit(0);
 
         BhProcess = new BhProcess(bhProcess);
 
@@ -40,23 +39,21 @@ public class BhManager
 
     private bool ScanMemory()
     {
+        if (BhProcess == null)
+        {
+            Console.WriteLine("Process not initialized.");
+            return false;
+        }
         try
         {
             Console.WriteLine("\nScanning for memory addresses... (This may take a while)");
 
-            ThreadStackScanner.FindThreadStack(BhProcess.Process, 0);
-
-
-            // if (BhProcess.FindPattern(Signatures.UserId.Pattern, out UIntPtr result))
-            // {
-            //     UserIdAddress = (UIntPtr) BhProcess.ReadInt32(result + (nuint) Signatures.UserId.Offset);
-            //     Console.WriteLine(UserIdAddress);
-            //     return true;
-            // }
+            _threadStackAddress = BhProcess.FindThreadStack();
+            Console.WriteLine(_threadStackAddress.ToUInt64().ToString("X"));
         }
         catch (Exception e)
         {
-            Console.Error.WriteLine(e);
+            Console.Error.WriteLine(e.Message);
         }
 
         Console.WriteLine("\nScanning failed!");

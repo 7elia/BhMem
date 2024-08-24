@@ -4,79 +4,74 @@ using System.Text;
 
 namespace BhMem;
 
-public class BhProcess
+public class BhProcess(Process process)
 {
-    [StructLayout(LayoutKind.Sequential)]
-    public struct MEMORY_BASIC_INFORMATION
+    private const uint TH32CS_SNAPTHREAD = 0x00000004;
+    private const int ThreadBasicInformation = 0x0;
+
+    private Process Process { get; } = process;
+
+    public UIntPtr FindThreadStack()
     {
-        public UIntPtr BaseAddress;
-        public UIntPtr AllocationBase;
-        public uint AllocationProtect;
-        public UIntPtr RegionSize;
-        public MemoryState State;
-        public MemoryProtect Protect;
-        public MemoryType Type;
-    }
+        var snapshot = NativeMethods.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, (uint) Process.Id);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool ReadProcessMemory(IntPtr hProcess, UIntPtr lpBaseAddress, [Out] byte[] lpBuffer, uint dwSize, out UIntPtr lpNumberOfBytesRead);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern bool WriteProcessMemory(IntPtr hProcess, UIntPtr lpBaseAddress, byte[] lpBuffer, uint nSize, out UIntPtr lpNumberOfBytesWritten);
-    [DllImport("kernel32.dll")]
-    public static extern int VirtualQueryEx(IntPtr hProcess, UIntPtr lpAddress, out MEMORY_BASIC_INFORMATION lpBuffer, uint dwLength);
-    public Process Process { get; }
-
-    public BhProcess(Process process)
-    {
-        Process = process;
-    }
-
-    public bool FindPattern(string pattern, out UIntPtr result)
-    {
-        byte?[] patternBytes = ParsePattern(pattern);
-
-        UIntPtr address = UIntPtr.Zero;
-
-        while (VirtualQueryEx(Process.Handle, address, out MEMORY_BASIC_INFORMATION basicInformation, (uint) Marshal.SizeOf(typeof(MEMORY_BASIC_INFORMATION))) != 0)
+        if (snapshot == IntPtr.Zero)
         {
-            if (basicInformation.State != MemoryState.MemFree && !basicInformation.Protect.HasFlag(MemoryProtect.PageGuard))
-            {
-                var region = new MemoryRegion(basicInformation);
-                if (Process.MainModule != null && (uint) region.BaseAddress < (uint) Process.MainModule.BaseAddress)
-                    continue;
-
-                byte[] buffer = ReadMemory(region.BaseAddress, region.RegionSize.ToUInt32());
-                if (FindMatch(patternBytes, buffer) is var match && match != UIntPtr.Zero)
-                {
-                    result = region.BaseAddress.ToUInt32() + match.ToUInt32();
-                    return true;
-                }
-            }
-
-            address = basicInformation.BaseAddress.ToUInt32() + basicInformation.RegionSize.ToUInt32();
+            Console.WriteLine($"Failed to take a snapshot of the threads: {Marshal.GetLastWin32Error()}");
+            return UIntPtr.Zero;
         }
 
-        result = UIntPtr.Zero;
-        return false;
+        var entry = new NativeMethods.THREADENTRY32
+        {
+            dwSize = (uint) Marshal.SizeOf(typeof(NativeMethods.THREADENTRY32))
+        };
+
+        if (NativeMethods.Thread32First(snapshot, ref entry))
+        {
+            do
+            {
+                if (entry.th32OwnerProcessID != (uint) Process.Id) continue;
+                
+                var threadHandle = NativeMethods.OpenThread(0x0040, false, entry.th32ThreadID);
+                if (threadHandle == IntPtr.Zero)
+                {
+                    Console.WriteLine($"Couldn't open thread: {Marshal.GetLastWin32Error()}");
+                    continue;
+                }
+                
+                var tbi = new NativeMethods.THREAD_BASIC_INFORMATION();
+                var tdiLength = (uint) Marshal.SizeOf(typeof(NativeMethods.THREAD_BASIC_INFORMATION)) - 1;
+                var status = NativeMethods.NtQueryInformationThread(threadHandle, ThreadBasicInformation, ref tbi, tdiLength, IntPtr.Zero);
+                NativeMethods.CloseHandle(threadHandle);
+                
+                if (status == 0)
+                {
+                    Console.WriteLine($"Thread ID: {entry.th32ThreadID}, StackBase: 0x{tbi.StackBase.ToInt64():X}");
+                    return (UIntPtr) tbi.StackBase;
+                }
+                Console.WriteLine($"Failed to query information for thread ID: {entry.th32ThreadID}, Status: {status:X} / {Marshal.GetLastWin32Error()}");
+            } while (NativeMethods.Thread32Next(snapshot, ref entry));
+        }
+        else
+        {
+            Console.WriteLine("Failed to iterate over threads.");
+        }
+
+        NativeMethods.CloseHandle(snapshot);
+        return UIntPtr.Zero;
     }
 
-    public byte[] ReadMemory(UIntPtr address, uint size)
+    private byte[] ReadMemory(UIntPtr address, uint size)
     {
-        byte[] result = new byte[size];
-        ReadProcessMemory(Process.Handle, address, result, size, out UIntPtr bytesRead);
+        var result = new byte[size];
+        NativeMethods.ReadProcessMemory(Process.Handle, address, result, size, out UIntPtr bytesRead);
         return result;
     }
 
     public UIntPtr ReadMemory(UIntPtr address, byte[] buffer, uint size)
     {
-        UIntPtr bytesRead;
-        ReadProcessMemory(Process.Handle, address, buffer, size, out bytesRead);
+        NativeMethods.ReadProcessMemory(Process.Handle, address, buffer, size, out var bytesRead);
         return bytesRead;
-    }
-
-    public void WriteMemory(UIntPtr address, byte[] data, uint length)
-    {
-        WriteProcessMemory(Process.Handle, address, data, length, out UIntPtr bytesWritten);
     }
 
     public int ReadInt32(UIntPtr address) => BitConverter.ToInt32(ReadMemory(address, sizeof(int)), 0);
@@ -93,98 +88,11 @@ public class BhProcess
 
     public bool ReadBool(UIntPtr address) => BitConverter.ToBoolean(ReadMemory(address, sizeof(bool)), 0);
 
-    public string ReadString(UIntPtr address, Encoding encoding)
+    public string ReadString(UIntPtr address, Encoding? encoding)
     {
-        encoding = encoding ?? Encoding.UTF8;
-        UIntPtr stringAddress = (UIntPtr)ReadInt32(address);
-        int length = ReadInt32(stringAddress + 0x4) * (encoding == Encoding.UTF8 ? 2 : 1);
-
+        encoding ??= Encoding.UTF8;
+        var stringAddress = (UIntPtr)ReadInt32(address);
+        var length = ReadInt32(stringAddress + 0x4) * (encoding.Equals(Encoding.UTF8) ? 2 : 1);
         return encoding.GetString(ReadMemory(stringAddress + 0x8, (uint)length)).Replace("\0", string.Empty);
     }
-
-    private byte?[] ParsePattern(string pattern)
-    {
-        byte?[] patternBytes = new byte?[pattern.Split(' ').Length];
-        for (int i = 0; i < patternBytes.Length; i++)
-        {
-            string currentByte = pattern.Split(' ')[i];
-            if (currentByte != "??")
-                patternBytes[i] = Convert.ToByte(currentByte, 16);
-            else
-                patternBytes[i] = null;
-        }
-
-        return patternBytes;
-    }
-
-    private UIntPtr FindMatch(byte?[] pattern, byte[] buffer)
-    {
-        bool found;
-        for (int i = 0; i + pattern.Length <= buffer.Length; i++)
-        {
-            found = true;
-            for (int j = 0; j < pattern.Length; j++)
-            {
-                if (pattern[j] == null || pattern[j] == buffer[i + j])
-                    continue;
-
-                found = false;
-                break;
-            }
-
-            if (found)
-                return (UIntPtr)i;
-        }
-
-        return UIntPtr.Zero;
-    }
-}
-
-public class MemoryRegion
-{
-    public UIntPtr BaseAddress { get; private set; }
-    public UIntPtr RegionSize { get; private set; }
-    public UIntPtr Start { get; private set; }
-    public UIntPtr End { get; private set; }
-    public MemoryState State { get; private set; }
-    public MemoryProtect Protect { get; private set; }
-    public MemoryType Type { get; private set; }
-
-    public MemoryRegion(BhProcess.MEMORY_BASIC_INFORMATION basicInformation)
-    {
-        BaseAddress = basicInformation.BaseAddress;
-        RegionSize = basicInformation.RegionSize;
-        State = basicInformation.State;
-        Protect = basicInformation.Protect;
-        Type = basicInformation.Type;
-    }
-}
-
-public enum MemoryState
-{
-    MemCommit = 0x1000,
-    MemReserved = 0x2000,
-    MemFree = 0x10000
-}
-
-public enum MemoryType
-{
-    MemPrivate = 0x20000,
-    MemMapped = 0x40000,
-    MemImage = 0x1000000
-}
-
-public enum MemoryProtect
-{
-    PageNoAccess = 0x00000001,
-    PageReadonly = 0x00000002,
-    PageReadWrite = 0x00000004,
-    PageWriteCopy = 0x00000008,
-    PageExecute = 0x00000010,
-    PageExecuteRead = 0x00000020,
-    PageExecuteReadWrite = 0x00000040,
-    PageExecuteWriteCopy = 0x00000080,
-    PageGuard = 0x00000100,
-    PageNoCache = 0x00000200,
-    PageWriteCombine = 0x00000400
 }

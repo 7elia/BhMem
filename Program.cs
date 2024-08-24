@@ -8,8 +8,6 @@ class Program
     {
         BhManager = new BhManager();
 
-        // MemoryScanner.ScanMemory();
-
         if (!BhManager.Initialize())
         {
             Console.WriteLine("\nBhMem will close in 5 seconds...");
