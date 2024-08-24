@@ -46,7 +46,7 @@ public class BhProcess(Process process)
                     var stackBase = ReadStackBase(process.Handle, tbi.TebBaseAddress);
                     if (stackBase != IntPtr.Zero)
                     {
-                        Console.WriteLine($"0x{stackBase - 0xA48:X}");
+                        Console.WriteLine($"0x{stackBase:X}");
                     }
 
                     continue;
