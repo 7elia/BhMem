@@ -42,10 +42,12 @@ internal abstract class Program
             if (shouldExit) break;
             
             Thread.Sleep(100);
-            
+
+            var oppId = _bhManager.OppId.ToString();
+            oppId = oppId == "0" ? "Unknown" : oppId;
             Console.Clear();
             Console.WriteLine($"User ID: {_bhManager.UserId}");
-            Console.WriteLine($"Opp. ID: {_bhManager.OpponentId}");
+            Console.WriteLine($"Opp. ID: {oppId}");
             Console.WriteLine($"Selected Legend: {_bhManager.SelectedLegend}");
             Console.WriteLine("\nESC. Back to Main Menu");
         }

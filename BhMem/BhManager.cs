@@ -20,22 +20,24 @@ public class BhManager
         }
     }
 
-    public int OpponentId
+    public int OppId
     {
         get
         {
             if (BhProcess == null) return 0;
             
             var stackAddress = BhProcess.GetThreadStackAddress(0);
-            var address = BhProcess.GetPointer(stackAddress - 0xA48, [0x158, 0x98, 0x4, 0xC, 0x8, 0x18, 0x10, 0x714]);
-            var id = BhProcess.ReadInt32(address);
-            
-            // The list of player ID's in a game isn't ordered consistently, so ~50% of the time the first address will yield the same result as `UserId`.
-            if (id != UserId && id != 0x0) return id;
-            
-            // address = BhProcess.GetPointer(stackAddress - 0xA48, [0x158, 0x98, 0x8, 0xC34]);
-            address = BhProcess.GetPointer(stackAddress - 0xA48, [0xB0, 0x44, 0x3C, 0x150, 0x30, 0xC, 0x8, 0xC34]);
-            return BhProcess.ReadInt32(address);
+
+            int[][] offsets =
+            [
+                [0x158, 0x98, 0x4, 0xC, 0x8, 0x18, 0x10, 0x714],
+                [0x158, 0x98, 0x8, 0xC34],
+                [0xB0, 0x44, 0x3C, 0x150, 0x30, 0xC, 0x8, 0xC34]
+            ];
+            return offsets
+                .Select(offset => BhProcess.GetPointer(stackAddress - 0xA48, offset))
+                .Select(address => BhProcess.ReadInt32(address))
+                .FirstOrDefault(id => id != UserId && id != 0x0);
         }
     }
 
@@ -66,8 +68,6 @@ public class BhManager
         bhProcess.Exited += (_, _) => Environment.Exit(0);
 
         BhProcess = new BhProcess(bhProcess);
-
-        Console.WriteLine(UserId);
         
         return true;
     }
