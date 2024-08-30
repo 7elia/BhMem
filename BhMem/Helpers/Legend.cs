@@ -1,5 +1,8 @@
-﻿namespace BhMem.BhMem.Helpers;
+﻿using System.Diagnostics.CodeAnalysis;
 
+namespace BhMem.BhMem.Helpers;
+
+[SuppressMessage("ReSharper", "UnusedMember.Global")]
 public enum Legend
 {
     Unknown = 0,

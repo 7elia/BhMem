@@ -26,7 +26,7 @@ internal abstract class Program
         var shouldExit = false;
         var task = Task.Run(() =>
         {
-            while (Console.ReadKey(true).Key != ConsoleKey.Escape) { };
+            while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
             shouldExit = true;
         });
 
