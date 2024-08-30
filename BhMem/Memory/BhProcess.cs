@@ -38,7 +38,7 @@ public class BhProcess(Process process)
         return result;
     }
 
-    public UIntPtr ReadPointer(UIntPtr address)
+    private UIntPtr ReadPointer(UIntPtr address)
     {
         var buffer = new byte[IntPtr.Size];
         var success = NativeMethods.ReadProcessMemory(Process.Handle, address, buffer, buffer.Length, out var bytesRead);

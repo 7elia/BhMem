@@ -31,9 +31,10 @@ public class BhManager
             var id = BhProcess.ReadInt32(address);
             
             // The list of player ID's in a game isn't ordered consistently, so ~50% of the time the first address will yield the same result as `UserId`.
-            if (id != UserId) return id;
+            if (id != UserId && id != 0x0) return id;
             
-            address = BhProcess.GetPointer(stackAddress - 0xA48, [0x158, 0x98, 0x8, 0xC34]);
+            // address = BhProcess.GetPointer(stackAddress - 0xA48, [0x158, 0x98, 0x8, 0xC34]);
+            address = BhProcess.GetPointer(stackAddress - 0xA48, [0xB0, 0x44, 0x3C, 0x150, 0x30, 0xC, 0x8, 0xC34]);
             return BhProcess.ReadInt32(address);
         }
     }
