@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 
-namespace BhMem;
+namespace BhMem.BhMem.Memory;
 
 public class BhProcess(Process process)
 {

@@ -1,18 +1,20 @@
-﻿namespace BhMem;
-
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
+
+namespace BhMem.BhMem.Memory;
 
 internal class ThreadInspector(Process process)
 {
     private Process Process { get; } = process;
+    private readonly Dictionary<int, UIntPtr> _threadStackCache = [];
 
     public UIntPtr GetThreadStackAddress(int stack)
     {
+        if (_threadStackCache.TryGetValue(stack, out var value))
+        {
+            return value;
+        }
         var dwProcId = (uint) Process.Id;
-
         var hProcHandle = NativeMethods.OpenProcess(NativeMethods.ProcessAccessFlags.All, false, dwProcId);
 
         if (hProcHandle == IntPtr.Zero)
@@ -30,6 +32,7 @@ internal class ThreadInspector(Process process)
             if (stackNum == stack)
             {
                 NativeMethods.CloseHandle(hProcHandle);
+                _threadStackCache.Add(stack, threadStartAddress);
                 return threadStartAddress;
             }
 
